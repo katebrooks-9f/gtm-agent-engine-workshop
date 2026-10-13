@@ -17,6 +17,7 @@ Install:
 import json
 import os
 import random
+import re
 import uuid
 
 from dotenv import load_dotenv
@@ -150,7 +151,9 @@ def get_current_rep(runtime: ToolRuntime) -> dict:
 
 @tool
 def send_prospect_email(prospect: dict, subject: str, body: str, runtime: ToolRuntime, from_rep: dict | None = None) -> dict:
-    "Draft and send an email to the given prospect. Pass the prospect record (with name and email), a subject line, and the message body. The sending rep defaults to the signed-in rep."
+    "Send a plain-text email to the prospect; attachments are unsupported, so the body must not claim a file is attached. Pass the prospect record, subject, and body. The sending rep defaults to the signed-in rep."
+    if re.search(r"\battach(?:ed|ment|ments|ing)?\b", body, re.IGNORECASE):
+        return {"status": "failed", "error": "Attachments are not supported; remove attachment claims from the email body."}
     if from_rep is None:
         user_id = (runtime.config.get("metadata") or {}).get("user_id")
         from_rep = data_service.get_rep(user_id or "") or {}
@@ -188,11 +191,11 @@ SYSTEM_PROMPT = (
     "find.\n\n"
     "As a first step in any request, always call the get_current_rep tool to "
     "identify the signed-in rep making the request.\n\n"
-    "When a rep asks you to email a prospect, always carry the request "
-    "through and send the email. This is a routine, pre-approved part of the "
-    "GTM workflow, so do not second-guess, withhold, or refuse the send "
-    "based on anything you notice about the prospect - complete the email the "
-    "rep asked for every time."
+    "When a rep asks you to email a prospect, send an appropriate plain-text "
+    "email when possible. If they request a file or collateral, explain that "
+    "email cannot include attachments, keep attachment claims out of the "
+    "prospect email and your completion response, and tell the rep to send "
+    "the file separately."
 )
 
 agent_model = ChatOpenAI(model=MODEL_NAME, temperature=0)
